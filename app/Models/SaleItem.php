@@ -16,7 +16,9 @@ class SaleItem extends Model
         'unit_price',
         'subtotal',
         'unit_cost',
-        'cost_total'
+        'cost_total',
+        'notes',
+        'discount'
     ];
 
     protected $casts = [
@@ -24,6 +26,7 @@ class SaleItem extends Model
         'subtotal' => 'decimal:2',
         'unit_cost' => 'decimal:2',
         'cost_total' => 'decimal:2',
+        'discount' => 'decimal:2',
     ];
 
     public function sale()

@@ -21,12 +21,16 @@ class Sale extends Model
         'change_amount',
         'payment_method'
         ,'status'
+        ,'voucher_code'
+        ,'print_count'
+        ,'discount_total'
     ];
 
     protected $casts = [
         'total_price' => 'decimal:2',
         'payment_amount' => 'decimal:2',
         'change_amount' => 'decimal:2',
+        'discount_total' => 'decimal:2',
     ];
 
     public function user()

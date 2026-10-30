@@ -8,9 +8,11 @@ use App\Models\MaterialBatch;
 use App\Models\Purchase;
 use App\Models\Product;
 use App\Models\CashierShift;
+use App\Models\SaleItem;
 use App\Models\Outlet;
 use App\Support\OutletScope;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -22,6 +24,32 @@ class HomeController extends Controller
     }
 
     public function index(): View
+    {
+        $cacheKey = 'dashboard:' . (OutletScope::current()?->id ?? 'all');
+        $metrics = Cache::remember($cacheKey, now()->addSeconds(60), fn () => $this->dashboardMetrics());
+        extract($metrics);
+
+        return view('home', compact(
+            'todaySales',
+            'todayOrders',
+            'avgTransaction',
+            'grossMarginToday',
+            'topProducts',
+            'totalProducts',
+            'totalOutlets',
+            'lowStockMaterials',
+            'nearExpiryBatches',
+            'expiredBatches',
+            'pendingPurchases',
+            'activeShifts'
+        ));
+    }
+
+    /**
+     * Semua query dashboard dibungkus satu closure agar bisa di-cache 60 detik
+     * per outlet — mengurangi beban DB saat banyak layar dashboard dibuka.
+     */
+    private function dashboardMetrics(): array
     {
         // 1. Total Penjualan Hari ini (hanya outlet user, kecuali Owner/Admin)
         $todaySales = Sale::visibleToCurrentOutlet()->whereDate('created_at', today())->sum('total_price');
@@ -56,17 +84,36 @@ class HomeController extends Controller
         // 6. Shift Kasir Aktif — per outlet
         $activeShifts = CashierShift::visibleToCurrentOutlet()->where('status', 'open')->with(['user', 'outlet'])->get();
 
-        return view('home', compact(
-            'todaySales',
-            'todayOrders',
-            'totalProducts',
-            'totalOutlets',
-            'lowStockMaterials',
-            'nearExpiryBatches',
-            'expiredBatches',
-            'pendingPurchases',
-            'activeShifts'
-        ));
+        // 7. Metrik bisnis ringkas: rata-rata transaksi & margin kotor hari ini (P2 dashboard lengkap)
+        $completedToday = Sale::visibleToCurrentOutlet()->whereDate('created_at', today())->where('status', 'completed');
+        $avgTransaction = $todayOrders > 0 ? round((clone $completedToday)->sum('total_price') / max(1, (clone $completedToday)->count()), 0) : 0;
+        $cogsToday = (clone $completedToday)->with('items')->get()->sum(fn ($sale) => $sale->items->sum('cost_total'));
+        $grossMarginToday = (clone $completedToday)->sum('total_price') - $cogsToday;
+
+        // 8. Menu terlaris hari ini (filter outlet lewat relasi sale)
+        $topProducts = SaleItem::query()
+            ->whereHas('sale', fn ($q) => $q->visibleToCurrentOutlet()->whereDate('sales.created_at', today()))
+            ->selectRaw('product_id, SUM(quantity) as qty, SUM(subtotal) as revenue')
+            ->groupBy('product_id')
+            ->orderByDesc('qty')
+            ->with('product')
+            ->limit(5)
+            ->get();
+
+        return [
+            'todaySales' => $todaySales,
+            'todayOrders' => $todayOrders,
+            'avgTransaction' => $avgTransaction,
+            'grossMarginToday' => $grossMarginToday,
+            'topProducts' => $topProducts,
+            'totalProducts' => $totalProducts,
+            'totalOutlets' => $totalOutlets,
+            'lowStockMaterials' => $lowStockMaterials,
+            'nearExpiryBatches' => $nearExpiryBatches,
+            'expiredBatches' => $expiredBatches,
+            'pendingPurchases' => $pendingPurchases,
+            'activeShifts' => $activeShifts,
+        ];
     }
 
     /**

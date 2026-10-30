@@ -16,6 +16,9 @@ use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use App\Models\HeldOrder;
+use App\Models\Voucher;
+use App\Models\Customer;
+use App\Support\Setting;
 
 class PosController extends Controller
 {
@@ -33,6 +36,21 @@ class PosController extends Controller
         $heldOrder->update(['status' => 'recalled']);
         return response()->json($heldOrder->fresh());
     }
+    // Daftar order yang sedang di-hold (untuk tombol recall di layar kasir)
+    public function heldOrders(Request $request): JsonResponse
+    {
+        $held = HeldOrder::where('user_id', $request->user()->id)
+            ->where('status', 'held')
+            ->latest()
+            ->get(['id', 'notes', 'created_at'])
+            ->map(function ($h) {
+                $h->total = collect($h->items ?? [])->sum(fn ($i) => $i['quantity'] * $i['price']);
+                return $h;
+            });
+
+        return response()->json($held);
+    }
+
     public function __construct()
     {
         $this->middleware('permission:pos-access');
@@ -65,9 +83,14 @@ class PosController extends Controller
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.price' => 'required|numeric|min:0',
+            'items.*.notes' => 'nullable|string|max:255',
+            'items.*.discount' => 'nullable|numeric|min:0',
             'payment_amount' => 'required|numeric|min:0',
             'payment_method' => 'nullable|string',
             'idempotency_key' => 'nullable|string|max:64',
+            'voucher_code' => 'nullable|string|max:50',
+            'customer_id' => 'nullable|integer|exists:customers,id',
+            'redeem_points' => 'nullable|integer|min:0',
         ]);
 
         try {
@@ -100,6 +123,7 @@ class PosController extends Controller
                     ->keyBy('id');
 
                 $totalPrice = 0;
+                $itemDiscountTotal = 0;
                 foreach ($request->items as $item) {
                     $product = $products->get($item['product_id']);
                     if (!$product) {
@@ -110,8 +134,43 @@ class PosController extends Controller
                     if (abs((float) $item['price'] - $serverPrice) > 0.001) {
                         throw new \Exception("Harga tidak sesuai untuk [{$product->name}]. Silakan refresh menu.");
                     }
-                    $totalPrice += ($item['quantity'] * $serverPrice);
+
+                    // Diskon per item divalidasi server: tidak boleh melebihi subtotal item.
+                    $itemDiscount = round((float) ($item['discount'] ?? 0), 2);
+                    $itemSubtotal = round($item['quantity'] * $serverPrice, 2);
+                    if ($itemDiscount < 0 || $itemDiscount > $itemSubtotal) {
+                        throw new \Exception("Diskon tidak valid untuk [{$product->name}].");
+                    }
+
+                    $itemDiscountTotal += $itemDiscount;
+                    $totalPrice += ($itemSubtotal - $itemDiscount);
                 }
+
+                // Voucher: dihitung ulang di server, bukan dipercaya dari browser.
+                $voucher = null;
+                $voucherDiscount = 0;
+                if ($request->filled('voucher_code')) {
+                    $voucher = Voucher::whereRaw('BINARY code = ?', [$request->voucher_code])->first();
+                    if (!$voucher || !$voucher->isCurrentlyValid()) {
+                        throw new \Exception('Voucher tidak valid, sudah kedaluwarsa, atau di luar jam promo.');
+                    }
+                    $voucherDiscount = min((float) $voucher->discount_amount, $totalPrice);
+                    $totalPrice -= $voucherDiscount;
+                }
+
+                // Penukaran poin loyalty member.
+                $customer = null;
+                $redeemValue = 0;
+                if ($request->filled('customer_id')) {
+                    $customer = Customer::lockForUpdate()->findOrFail($request->customer_id);
+                    if ((int) $request->input('redeem_points', 0) > 0) {
+                        $redeemValue = $customer->redeemPoints((int) $request->redeem_points);
+                        $redeemValue = min($redeemValue, $totalPrice);
+                        $totalPrice -= $redeemValue;
+                    }
+                }
+
+                $discountTotal = $itemDiscountTotal + $voucherDiscount + $redeemValue;
 
                 if ($request->payment_amount < $totalPrice) {
                     throw new \Exception('Jumlah uang pembayaran kurang dari total tagihan!');
@@ -126,11 +185,14 @@ class PosController extends Controller
                     'invoice_number' => $invoiceNumber,
                     'user_id' => auth()->id(),
                     'outlet_id' => $shift->outlet_id ?? auth()->user()->outlet_id,
+                    'customer_id' => $customer?->id,
                     'shift_id' => $shift->id,
                     'total_price' => $totalPrice,
+                    'discount_total' => $discountTotal,
                     'payment_amount' => $request->payment_amount,
                     'change_amount' => $changeAmount,
                     'payment_method' => $paymentMethod,
+                    'voucher_code' => $voucher?->code,
                     'idempotency_key' => $idempotencyKey,
                 ]);
 
@@ -148,6 +210,8 @@ class PosController extends Controller
                         'subtotal' => $subtotal,
                         'unit_cost' => $unitCost,
                         'cost_total' => $unitCost * $item['quantity'],
+                        'notes' => $item['notes'] ?? null,
+                        'discount' => round((float) ($item['discount'] ?? 0), 2),
                     ]);
 
                     // Pemotongan Stok Bahan Baku Otomatis Sesuai Resep (BOM) & FIFO Batch
@@ -215,10 +279,20 @@ class PosController extends Controller
                 $shift->expected_cash = $shift->calculateExpectedCash();
                 $shift->save();
 
+                // 4b. Voucher: hitung pemakaian; Loyalty member: accrue poin otomatis.
+                $voucher?->increment('used_count');
+
+                if ($customer) {
+                    $rate = max(1, (int) Setting::get('loyalty_rate', 1000));
+                    $pointsEarned = intdiv((int) floor($totalPrice), $rate);
+                    $customer->addLoyaltyPoints($pointsEarned, $sale->id, "Transaksi {$invoiceNumber}");
+                }
+
                 // 5. Catat Activity Log Audit
                 ActivityLog::record(
                     'POS_SALE',
                     "Transaksi Kasir {$invoiceNumber} oleh " . auth()->user()->name . " Total: Rp " . number_format($totalPrice, 0, ',', '.') . " ({$paymentMethod})"
+                    . ($discountTotal > 0 ? " | Diskon: Rp " . number_format($discountTotal, 0, ',', '.') : '')
                 );
 
                 return $sale;
@@ -241,9 +315,16 @@ class PosController extends Controller
     }
 
     // Thermal Receipt Print View
-    public function receipt(Sale $sale): View
+    public function receipt(Request $request, Sale $sale): View
     {
         $sale->load(['user', 'shift.outlet', 'items.product']);
+
+        // Cetak ulang struk hanya untuk kasir outlet yang sama; hitung jumlah reprint utk audit.
+        if ($request->user()->can('pos-access')) {
+            $sale->increment('print_count');
+            ActivityLog::record('POS_RECEIPT_REPRINT', "Cetak ulang struk {$sale->invoice_number} oleh " . $request->user()->name);
+        }
+
         return view('pos.receipt', compact('sale'));
     }
 }

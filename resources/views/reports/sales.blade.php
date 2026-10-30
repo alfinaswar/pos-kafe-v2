@@ -36,7 +36,7 @@
                 <label>Sampai Tanggal:</label>
                 <input type="date" id="end_date" class="form-control form-control-sm" value="{{ date('Y-m-d') }}">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label>Metode Pembayaran:</label>
                 <select id="payment_method" class="form-control form-control-sm">
                     <option value="">-- Semua Metode --</option>
@@ -44,6 +44,24 @@
                     <option value="qris">QRIS</option>
                     <option value="transfer">Transfer Bank</option>
                     <option value="debit">Kartu Debit</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label>Kasir:</label>
+                <select id="cashier_id" class="form-control form-control-sm">
+                    <option value="">-- Semua Kasir --</option>
+                    @foreach($cashiers as $c)
+                        <option value="{{ $c->id }}">{{ $c->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label>Kategori Menu:</label>
+                <select id="category_id" class="form-control form-control-sm">
+                    <option value="">-- Semua Kategori --</option>
+                    @foreach($categories as $cat)
+                        <option value="{{ $cat }}">{{ $cat }}</option>
+                    @endforeach
                 </select>
             </div>
             <div class="col-md-3 d-flex align-items-end">
@@ -87,6 +105,8 @@
                         d.start_date = $('#start_date').val();
                         d.end_date = $('#end_date').val();
                         d.payment_method = $('#payment_method').val();
+                        d.cashier_id = $('#cashier_id').val();
+                        d.category_id = $('#category_id').val();
                     }
                 },
                 columns: [
@@ -109,6 +129,8 @@
                 $('#start_date').val('');
                 $('#end_date').val('');
                 $('#payment_method').val('');
+                $('#cashier_id').val('');
+                $('#category_id').val('');
                 table.draw();
             });
 
@@ -116,7 +138,11 @@
                 e.preventDefault();
                 let s = $('#start_date').val() || '';
                 let eDate = $('#end_date').val() || '';
-                window.location.href = "{{ route('reports.sales.export') }}?start_date=" + s + "&end_date=" + eDate;
+                let exportUrl = "{{ route('reports.sales.export') }}?start_date=" + s + "&end_date=" + eDate;
+                if ($('#payment_method').val()) exportUrl += "&payment_method=" + encodeURIComponent($('#payment_method').val());
+                if ($('#cashier_id').val()) exportUrl += "&cashier_id=" + $('#cashier_id').val();
+                if ($('#category_id').val()) exportUrl += "&category_id=" + encodeURIComponent($('#category_id').val());
+                window.location.href = exportUrl;
             });
         });
     </script>

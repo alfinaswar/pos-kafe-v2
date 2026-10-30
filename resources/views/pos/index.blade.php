@@ -105,6 +105,8 @@
             <div class="card-header bg-white">
                 <h3 class="card-title font-weight-bold"><i class="fas fa-shopping-cart mr-1"></i> Pesanan Kasir</h3>
                 <div class="card-tools">
+                    <button class="btn btn-outline-warning btn-xs mr-1" id="btn-hold" onclick="holdOrder()" title="Simpan order sementara"><i class="fas fa-pause"></i> Hold</button>
+                    <button class="btn btn-outline-info btn-xs mr-1" data-toggle="modal" data-target="#modal-held-orders" onclick="loadHeldOrders()" title="Panggil order yang di-hold"><i class="fas fa-history"></i> Recall</button>
                     <button class="btn btn-outline-danger btn-xs" onclick="clearCart()"><i class="fas fa-trash"></i> Reset</button>
                 </div>
             </div>
@@ -115,6 +117,7 @@
                             <th>Menu</th>
                             <th style="width: 90px;" class="text-center">Qty</th>
                             <th style="width: 100px;" class="text-right">Subtotal</th>
+                            <th style="width: 58px;" class="text-center">Cat/Dsk</th>
                             <th style="width: 30px;"></th>
                         </tr>
                     </thead>
@@ -161,6 +164,21 @@
                     <button type="button" class="btn btn-outline-secondary btn-xs mr-1 mb-1 btn-quick" onclick="addPayment(100000)">100k</button>
                 </div>
 
+                <div class="row mb-2">
+                    <div class="col-6 pr-1">
+                        <label class="text-xs mb-1">Voucher Promo</label>
+                        <input type="text" id="voucher-code" class="form-control form-control-sm text-uppercase" placeholder="Kode voucher" onchange="recalcTotals()">
+                    </div>
+                    <div class="col-6 pl-1">
+                        <label class="text-xs mb-1">Member (ID)</label>
+                        <input type="number" id="customer-id" class="form-control form-control-sm" placeholder="Opsional" min="1">
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between mb-1 text-sm">
+                    <span class="text-muted">Diskon:</span>
+                    <strong id="discount-display" class="text-warning">Rp 0</strong>
+                </div>
                 <div class="d-flex justify-content-between mb-3 text-sm">
                     <span>Kembalian:</span>
                     <strong id="change-display" class="text-secondary">Rp 0</strong>
@@ -212,12 +230,60 @@
         </div>
     </div>
 </div>
+<!-- Modal Order Ter-hold -->
+<div class="modal fade" id="modal-held-orders" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title font-weight-bold"><i class="fas fa-history mr-1"></i> Order Di-Hold</h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="held-list" class="list-group list-group-flush"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Catatan & Diskon Item -->
+<div class="modal fade" id="modal-item-note" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-secondary text-white">
+                <h5 class="modal-title font-weight-bold"><i class="fas fa-sticky-note mr-1"></i> <span id="item-note-title">Catatan Item</span></h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Catatan Kasir (mis. less sugar, tanpa es)</label>
+                    <input type="text" id="item-notes-input" class="form-control" maxlength="255">
+                </div>
+                <div class="form-group mb-0">
+                    <label>Diskon Nominal (Rp) — maks = subtotal item</label>
+                    <input type="number" id="item-discount-input" class="form-control" min="0" step="500">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary font-weight-bold" onclick="saveItemNote()">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
 <script src="{{ asset('assets/plugins/sweetalert2/sweetalert2.all.min.js') }}"></script>
 <script>
     let cart = [];
+
+    // Subtotal kotor dan bersih (setelah diskon item) per baris keranjang.
+    function grossSub(item) { return item.quantity * item.price; }
+    function itemDisc(item) { return Math.min(parseFloat(item.discount) || 0, grossSub(item)); }
+    function netSub(item) { return grossSub(item) - itemDisc(item); }
+    function cartGross() { return cart.reduce((a, i) => a + grossSub(i), 0); }
+    function cartItemDiscount() { return cart.reduce((a, i) => a + itemDisc(i), 0); }
+    function payableTotal() { return cart.reduce((a, i) => a + netSub(i), 0); }
 
     // Filter Kategori
     $('.category-btn').click(function() {
@@ -243,7 +309,7 @@
     });
 
     function setExactPayment() {
-        let total = cart.reduce((acc, i) => acc + (i.quantity * i.price), 0);
+        let total = payableTotal();
         $('#payment-input').val(total);
         calcChange(total);
     }
@@ -251,8 +317,7 @@
     function addPayment(amt) {
         let current = parseFloat($('#payment-input').val()) || 0;
         $('#payment-input').val(current + amt);
-        let total = cart.reduce((acc, i) => acc + (i.quantity * i.price), 0);
-        calcChange(total);
+        calcChange(payableTotal());
     }
 
     function addToCart(id, name, price) {
@@ -289,6 +354,7 @@
     function clearCart() {
         cart = [];
         $('#payment-input').val('');
+        $('#voucher-code').val('');
         currentIdempotencyKey = null; // transaksi baru = kunci idempotency baru
         renderCart();
     }
@@ -306,11 +372,12 @@
             $('#btn-checkout').prop('disabled', false);
 
             cart.forEach(item => {
-                let subtotal = item.quantity * item.price;
-                total += subtotal;
+                total += netSub(item);
+                let noteBadge = item.notes ? `<small class="d-block text-info text-truncate" style="max-width:140px" title="${item.notes}"><i class="fas fa-sticky-note"></i> ${item.notes}</small>` : '';
+                let discBadge = itemDisc(item) > 0 ? `<small class="d-block text-warning"><i class="fas fa-tag"></i> -Rp ${itemDisc(item).toLocaleString('id-ID')}</small>` : '';
                 tbody.append(`
                     <tr>
-                        <td class="font-weight-bold text-sm">${item.name}</td>
+                        <td class="font-weight-bold text-sm">${item.name}${noteBadge}${discBadge}</td>
                         <td class="text-center">
                             <div class="btn-group btn-group-xs">
                                 <button type="button" class="btn btn-outline-secondary btn-xs px-2" onclick="updateQty(${item.product_id}, -1)">-</button>
@@ -318,8 +385,9 @@
                                 <button type="button" class="btn btn-outline-secondary btn-xs px-2" onclick="updateQty(${item.product_id}, 1)">+</button>
                             </div>
                         </td>
-                        <td class="text-right text-sm">Rp ${subtotal.toLocaleString('id-ID')}</td>
+                        <td class="text-right text-sm">Rp ${netSub(item).toLocaleString('id-ID')}</td>
                         <td class="text-center">
+                            <i class="fas fa-sticky-note text-info cursor-pointer mr-1" title="Catatan & diskon" onclick="openItemNote(${item.product_id})"></i>
                             <i class="fas fa-times text-danger cursor-pointer" onclick="removeFromCart(${item.product_id})"></i>
                         </td>
                     </tr>
@@ -327,16 +395,21 @@
             });
         }
 
-        $('#grand-total-display').text('Rp ' + total.toLocaleString('id-ID'));
+        recalcTotals();
+    }
+
+    function recalcTotals() {
+        let payable = payableTotal();
+        $('#grand-total-display').text('Rp ' + payable.toLocaleString('id-ID'));
+        $('#discount-display').text('Rp ' + cartItemDiscount().toLocaleString('id-ID'));
         if ($('#payment-method').val() !== 'cash') {
-            $('#payment-input').val(total);
+            $('#payment-input').val(payable);
         }
-        calcChange(total);
+        calcChange(payable);
     }
 
     $('#payment-input').on('input', function() {
-        let total = cart.reduce((acc, i) => acc + (i.quantity * i.price), 0);
-        calcChange(total);
+        calcChange(payableTotal());
     });
 
     function calcChange(total) {
@@ -349,6 +422,76 @@
         }
     }
 
+    let editingItemId = null;
+    function openItemNote(id) {
+        let item = cart.find(i => i.product_id === id);
+        if (!item) return;
+        editingItemId = id;
+        $('#item-note-title').text('Catatan: ' + item.name);
+        $('#item-notes-input').val(item.notes || '');
+        $('#item-discount-input').val(item.discount || '').attr('max', grossSub(item));
+        $('#modal-item-note').modal('show');
+    }
+
+    function saveItemNote() {
+        let item = cart.find(i => i.product_id === editingItemId);
+        if (item) {
+            item.notes = $('#item-notes-input').val().trim();
+            item.discount = Math.min(Math.max(0, parseFloat($('#item-discount-input').val()) || 0), grossSub(item));
+        }
+        $('#modal-item-note').modal('hide');
+        renderCart();
+    }
+
+    function holdOrder() {
+        if (cart.length === 0) {
+            Swal.fire({ icon: 'warning', title: 'Keranjang kosong', text: 'Tambahkan item sebelum hold order.' });
+            return;
+        }
+        $.ajax({
+            url: "{{ route('pos.hold') }}",
+            type: "POST",
+            data: { _token: $('meta[name="csrf-token"]').attr('content'), items: cart.map(i => ({ product_id: i.product_id, quantity: i.quantity, price: i.price, name: i.name, notes: i.notes || '', discount: itemDisc(i) })), notes: '' },
+            success: function () {
+                Swal.fire({ icon: 'success', title: 'Order di-hold!', timer: 1200, showConfirmButton: false });
+                clearCart();
+            },
+            error: function () { Swal.fire({ icon: 'error', title: 'Gagal hold order.' }); }
+        });
+    }
+
+    function loadHeldOrders() {
+        $.get("{{ route('pos.held-orders') }}", function (rows) {
+            let box = $('#held-list').empty();
+            if (!rows.length) {
+                box.append('<div class="list-group-item text-center text-muted py-4">Tidak ada order yang di-hold.</div>');
+                return;
+            }
+            rows.forEach(h => {
+                box.append(`<button type="button" class="list-group-item list-group-item-action" onclick="recallOrder(${h.id})">
+                    <strong>#${h.id}</strong> — ${new Date(h.created_at).toLocaleTimeString('id-ID')}
+                    <span class="float-right font-weight-bold text-success">Rp ${(h.total || 0).toLocaleString('id-ID')}</span>
+                    ${h.notes ? '<small class="d-block text-muted">' + h.notes + '</small>' : ''}
+                </button>`);
+            });
+        });
+    }
+
+    function recallOrder(id) {
+        if (cart.length > 0) {
+            Swal.fire({ icon: 'warning', title: 'Keranjang belum kosong', text: 'Hold atau selesaikan order aktif dulu sebelum recall.' });
+            return;
+        }
+        $.get("{{ url('pos/held-orders') }}/" + id, function (h) {
+            cart = (h.items || []).map(i => ({ product_id: i.product_id, name: i.name || ('Item #' + i.product_id), price: i.price, quantity: i.quantity, notes: i.notes || '', discount: i.discount || 0 }));
+            currentIdempotencyKey = null;
+            $('#modal-held-orders').modal('hide');
+            renderCart();
+        }).fail(function () {
+            Swal.fire({ icon: 'error', title: 'Gagal recall', text: 'Order mungkin sudah dipanggil.');
+        });
+    }
+
     // Kunci unik per transaksi untuk mencegah dobel-klik menyimpan transaksi ganda.
     let currentIdempotencyKey = null;
     function newIdempotencyKey() {
@@ -356,7 +499,7 @@
     }
 
     function processCheckout() {
-        let total = cart.reduce((acc, i) => acc + (i.quantity * i.price), 0);
+        let total = payableTotal();
         let payment = parseFloat($('#payment-input').val()) || 0;
         let method = $('#payment-method').val();
 
@@ -386,7 +529,9 @@
                         items: cart,
                         payment_amount: payment,
                         payment_method: method,
-                        idempotency_key: currentIdempotencyKey
+                        idempotency_key: currentIdempotencyKey,
+                        voucher_code: $('#voucher-code').val().trim(),
+                        customer_id: $('#customer-id').val() || ''
                     },
                     success: function(response) {
                         Swal.fire({

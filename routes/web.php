@@ -105,6 +105,7 @@ Route::group(['middleware' => ['auth']], function() {
     Route::get('pos', [PosController::class, 'index'])->name('pos.index');
     Route::post('pos', [PosController::class, 'store'])->name('pos.store');
     Route::post('pos/held-orders', [PosController::class, 'hold'])->name('pos.hold');
+    Route::get('pos/held-orders', [PosController::class, 'heldOrders'])->name('pos.held-orders');
     Route::get('pos/held-orders/{heldOrder}', [PosController::class, 'recall'])->name('pos.recall');
     Route::get('pos/receipt/{sale}', [PosController::class, 'receipt'])->name('pos.receipt');
     Route::get('table-orders', [TableOrderController::class, 'index'])->name('table-orders.index');

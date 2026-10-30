@@ -34,6 +34,12 @@ class ReportController extends Controller
             if ($request->filled('payment_method')) {
                 $sales->where('payment_method', $request->payment_method);
             }
+            if ($request->filled('cashier_id')) {
+                $sales->where('user_id', $request->cashier_id);
+            }
+            if ($request->filled('category_id')) {
+                $sales->whereHas('items.product', fn ($q) => $q->where('category', $request->category_id));
+            }
 
             return DataTables::of($sales)
                 ->addIndexColumn()
@@ -46,7 +52,9 @@ class ReportController extends Controller
                 ->make(true);
         }
 
-        return view('reports.sales');
+        $cashiers = \App\Models\User::permission('pos-access')->orderBy('name')->get(['id', 'name']);
+        $categories = Product::select('category')->distinct()->whereNotNull('category')->pluck('category');
+        return view('reports.sales', compact('cashiers', 'categories'));
     }
 
     public function inventory(Request $request): View|JsonResponse
@@ -173,6 +181,15 @@ class ReportController extends Controller
         $sales = Sale::visibleToCurrentOutlet()->with(['user', 'shift.outlet', 'items.product'])->latest();
         if ($request->filled('start_date') && $request->filled('end_date')) {
             $sales->whereBetween('created_at', [$request->start_date . ' 00:00:00', $request->end_date . ' 23:59:59']);
+        }
+        if ($request->filled('payment_method')) {
+            $sales->where('payment_method', $request->payment_method);
+        }
+        if ($request->filled('cashier_id')) {
+            $sales->where('user_id', $request->cashier_id);
+        }
+        if ($request->filled('category_id')) {
+            $sales->whereHas('items.product', fn ($q) => $q->where('category', $request->category_id));
         }
         $list = $sales->get();
 
