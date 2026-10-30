@@ -7,6 +7,7 @@ use App\Models\MaterialBatch;
 use App\Models\InventoryLog;
 use App\Models\ActivityLog;
 use Illuminate\Http\Request;
+use App\Models\ApprovalRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +17,36 @@ use Yajra\DataTables\Facades\DataTables;
 
 class MaterialBatchController extends Controller
 {
+    public function requestAdjustment(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate(['material_id' => ['required', 'exists:materials,id'], 'quantity' => ['required', 'numeric'], 'reason' => ['required', 'string', 'max:1000']]);
+        $approval = ApprovalRequest::create(['outlet_id' => $request->user()->outlet_id, 'requested_by' => $request->user()->id, 'type' => 'stock_adjustment', 'reference_type' => 'material', 'reference_id' => $data['material_id'], 'reason' => $data['reason'] . ' | Quantity: ' . $data['quantity'], 'status' => 'pending']);
+        return response()->json(['success' => true, 'status' => $approval->status, 'approval_id' => $approval->id], 202);
+    }
+
+    public function waste(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate(['material_id' => ['required', 'exists:materials,id'], 'quantity' => ['required', 'numeric', 'gt:0'], 'reason' => ['required', 'string', 'max:1000']]);
+        $material = \App\Models\Material::whereKey($data['material_id'])->lockForUpdate()->firstOrFail();
+        abort_unless($material->stock >= $data['quantity'], 422, 'Stok tidak cukup.');
+        $material->decrement('stock', $data['quantity']);
+        \App\Models\InventoryLog::create(['material_id' => $material->id, 'type' => 'out', 'quantity' => $data['quantity'], 'stock_after' => $material->fresh()->stock, 'reference' => 'WASTE - ' . $data['reason']]);
+        return response()->json(['success' => true], 201);
+    }
+
+    public function transfer(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate(['material_id' => ['required', 'exists:materials,id'], 'destination_outlet_id' => ['required', 'exists:outlets,id'], 'quantity' => ['required', 'numeric', 'gt:0'], 'reason' => ['required', 'string', 'max:1000']]);
+        $material = \App\Models\Material::whereKey($data['material_id'])->lockForUpdate()->firstOrFail();
+        abort_unless($material->stock >= $data['quantity'], 422, 'Stok tidak cukup.');
+        $material->decrement('stock', $data['quantity']);
+        $sourceStock = \App\Models\MaterialOutletStock::firstOrCreate(['outlet_id' => $request->user()->outlet_id, 'material_id' => $material->id], ['stock' => $material->stock]);
+        abort_unless($sourceStock->stock >= $data['quantity'], 422, 'Stok outlet tidak cukup.');
+        $sourceStock->decrement('stock', $data['quantity']);
+        \App\Models\MaterialOutletStock::firstOrCreate(['outlet_id' => $data['destination_outlet_id'], 'material_id' => $material->id], ['stock' => 0])->increment('stock', $data['quantity']);
+        \App\Models\InventoryLog::create(['material_id' => $material->id, 'type' => 'out', 'quantity' => $data['quantity'], 'stock_after' => $material->fresh()->stock, 'reference' => 'TRANSFER OUT to outlet #' . $data['destination_outlet_id'] . ' - ' . $data['reason']]);
+        return response()->json(['success' => true], 201);
+    }
     public function __construct()
     {
         $this->middleware('permission:batch-list', ['only' => ['index']]);

@@ -54,7 +54,8 @@ class ProductController extends Controller
     public function create(): View
     {
         $materials = Material::orderBy('name')->get();
-        return view('products.create', compact('materials'));
+        $products = Product::orderBy('name')->get();
+        return view('products.create', compact('materials', 'products'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -75,8 +76,12 @@ class ProductController extends Controller
                     'name' => $request->name,
                     'category' => $request->category,
                     'price' => $request->price,
-                    'detail' => $request->detail,
+             'detail' => $request->detail,
+                    'is_bundle' => $request->boolean('is_bundle'),
                 ]);
+                foreach ($request->input('bundle_items', []) as $productId => $bundle) {
+                    if (!empty($bundle['selected']) && (int) $productId !== $product->id) $product->bundleItems()->create(['product_id' => $productId, 'quantity' => max(1, (int) ($bundle['quantity'] ?? 1))]);
+                }
 
                 // Simpan Bill of Materials (Resep)
                 if ($request->has('materials')) {

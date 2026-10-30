@@ -15,9 +15,24 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
+use App\Models\HeldOrder;
 
 class PosController extends Controller
 {
+    public function hold(Request $request): JsonResponse
+    {
+        $data = $request->validate(['items' => ['required', 'array', 'min:1'], 'items.*.product_id' => ['required', 'exists:products,id'], 'items.*.quantity' => ['required', 'integer', 'min:1'], 'items.*.price' => ['required', 'numeric', 'min:0'], 'notes' => ['nullable', 'string', 'max:1000']]);
+        $held = HeldOrder::create(['user_id' => $request->user()->id, 'outlet_id' => $request->user()->outlet_id, 'items' => $data['items'], 'notes' => $data['notes'] ?? null]);
+        return response()->json(['id' => $held->id, 'status' => $held->status], 201);
+    }
+
+    public function recall(Request $request, HeldOrder $heldOrder): JsonResponse
+    {
+        abort_unless($heldOrder->user_id === $request->user()->id && $heldOrder->outlet_id === $request->user()->outlet_id, 403);
+        abort_unless($heldOrder->status === 'held', 422, 'Order sudah dipanggil atau dibatalkan.');
+        $heldOrder->update(['status' => 'recalled']);
+        return response()->json($heldOrder->fresh());
+    }
     public function __construct()
     {
         $this->middleware('permission:pos-access');
@@ -94,6 +109,7 @@ class PosController extends Controller
                 foreach ($request->items as $item) {
                     $product = Product::with('recipeItems.material')->findOrFail($item['product_id']);
                     $subtotal = $item['quantity'] * $item['price'];
+                    $unitCost = $product->recipeItems->sum(fn ($recipe) => $recipe->quantity * (optional($recipe->material->batches()->latest()->first())->purchase_price ?? 0));
 
                     SaleItem::create([
                         'sale_id' => $sale->id,
@@ -101,6 +117,8 @@ class PosController extends Controller
                         'quantity' => $item['quantity'],
                         'unit_price' => $item['price'],
                         'subtotal' => $subtotal,
+                        'unit_cost' => $unitCost,
+                        'cost_total' => $unitCost * $item['quantity'],
                     ]);
 
                     // Pemotongan Stok Bahan Baku Otomatis Sesuai Resep (BOM) & FIFO Batch

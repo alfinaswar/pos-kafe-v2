@@ -88,6 +88,44 @@
             <nav class="mt-2">
                 <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
                     <li class="nav-item">
+                        @can('approval-manage')
+                        <a href="{{ route('approvals.index') }}" class="nav-link">
+                            <i class="nav-icon fas fa-user-check"></i>
+                            <p>Approval</p>
+                        </a>
+                        @endcan
+                    </li>
+                    <li class="nav-item">
+                        @can('pos-access')
+                        <a href="{{ route('table-requests.index') }}" class="nav-link">
+                            <i class="nav-icon fas fa-bell"></i>
+                            <p>Permintaan Meja</p>
+                        </a>
+                        @endcan
+                    </li>
+                    <li class="nav-item">
+                        @can('kitchen-access')
+                        <a href="{{ route('kitchen.index') }}" class="nav-link">
+                            <i class="nav-icon fas fa-utensils"></i>
+                            <p>Kitchen Display</p>
+                        </a>
+                        @endcan
+                    </li>
+                    <li class="nav-item">
+                        @can('payment-settings')
+                        <a href="{{ route('settings.payment') }}" class="nav-link">
+                            <i class="nav-icon fas fa-credit-card"></i>
+                            <p>Pengaturan Pembayaran</p>
+                        </a>
+                        @endcan
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ route('tables.index') }}" class="nav-link">
+                            <i class="nav-icon fas fa-chair"></i>
+                            <p>Meja Kafe</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a href="{{ route('table-orders.index') }}" class="nav-link">
                             <i class="nav-icon fas fa-concierge-bell"></i>
                             <p>Order Meja</p>

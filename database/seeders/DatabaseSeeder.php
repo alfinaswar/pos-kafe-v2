@@ -51,7 +51,10 @@ class DatabaseSeeder extends Seeder
             // POS & Shift Management
             'pos-access', 'shift-manage', 'petty-cash',
             // Reports, Activity Log & Dashboard
-            'report-access', 'dashboard-access', 'activity-log-list'
+            'report-access', 'dashboard-access', 'activity-log-list',
+            // Table ordering, approvals, kitchen, payments, and customer features
+            'table-manage', 'kitchen-access', 'payment-settings', 'approval-manage',
+            'customer-manage'
         ];
 
         foreach ($permissions as $permission) {
@@ -75,7 +78,8 @@ class DatabaseSeeder extends Seeder
             'product-list', 'product-create', 'product-edit', 'recipe-manage',
             'purchase-list', 'purchase-create', 'purchase-receive',
             'shift-manage',
-            'report-access', 'activity-log-list'
+            'report-access', 'activity-log-list',
+            'table-manage', 'kitchen-access', 'approval-manage', 'customer-manage'
         ]);
 
         // Cashier: POS kasir, buka/tutup shift, kas kecil

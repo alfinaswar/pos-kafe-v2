@@ -9,7 +9,7 @@ class CustomerOrder extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['table_session_id', 'order_number', 'status', 'total', 'notes'];
+    protected $fillable = ['table_session_id', 'order_number', 'status', 'destination', 'total', 'notes'];
 
     protected $casts = ['total' => 'decimal:2'];
 

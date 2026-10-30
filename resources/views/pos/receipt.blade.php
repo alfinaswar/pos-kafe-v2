@@ -24,6 +24,7 @@
     </style>
 </head>
 <body onload="window.print()">
+<button class="no-print" onclick="window.print()">Cetak Ulang</button>
 
 <div class="text-center">
     <h3 style="margin: 0;">{{ $sale->shift->outlet->name ?? 'KEDAI KOPI KAYA RAYA' }}</h3>

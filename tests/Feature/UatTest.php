@@ -247,6 +247,7 @@ class UatTest extends TestCase
             'email' => 'inactive@test.com',
             'password' => Hash::make('password'),
             'outlet_id' => $this->outlet->id,
+            'status' => 'inactive',
         ]);
 
         $response = $this->post('/login', [
@@ -254,9 +255,30 @@ class UatTest extends TestCase
             'password' => 'password',
         ]);
 
-        // Since no "active" column, login should still work unless we add one
-        // For now, test passes as login succeeds
-        $response->assertRedirect('/home');
+        $response->assertSessionHasErrors('email');
+        $this->assertGuest();
+    }
+
+    public function test_manager_can_approve_sensitive_action(): void
+    {
+        $manager = User::create([
+            'name' => 'Approval Manager', 'username' => 'approval-manager', 'email' => 'approval-manager@test.com',
+            'password' => Hash::make('password'), 'outlet_id' => $this->outlet->id, 'status' => 'active',
+        ]);
+        $permission = Permission::firstOrCreate(['name' => 'approval-manage']);
+        $role = Role::firstOrCreate(['name' => 'Approval Manager']);
+        $role->givePermissionTo($permission);
+        $manager->assignRole($role);
+        $approval = \App\Models\ApprovalRequest::create([
+            'outlet_id' => $this->outlet->id, 'requested_by' => $this->cashier->id,
+            'type' => 'void', 'reference_type' => 'sale', 'reference_id' => 1,
+            'reason' => 'Salah input', 'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($manager)->patch('/approvals/' . $approval->id, ['status' => 'approved']);
+
+        $response->assertRedirect(route('approvals.index'));
+        $this->assertDatabaseHas('approval_requests', ['id' => $approval->id, 'status' => 'approved', 'approved_by' => $manager->id]);
     }
 
     // ========== UAT-004: Dashboard tampilan ringkasan penjualan ==========
@@ -441,6 +463,64 @@ class UatTest extends TestCase
             'user_id' => $this->cashier->id,
             'shift_id' => $shift->id,
         ]);
+    }
+
+    public function test_cashier_can_hold_and_recall_pos_order(): void
+    {
+        $this->actingAs($this->cashier);
+        $shift = CashierShift::create(['user_id' => $this->cashier->id, 'outlet_id' => $this->outlet->id, 'start_cash' => 100000, 'status' => 'open']);
+        $response = $this->postJson('/pos/held-orders', ['items' => [['product_id' => $this->products[0]->id, 'quantity' => 1, 'price' => 22000]], 'notes' => 'Customer pergi sebentar']);
+        $response->assertCreated();
+        $heldId = $response->json('id');
+        $this->getJson('/pos/held-orders/' . $heldId)->assertOk()->assertJsonPath('items.0.product_id', $this->products[0]->id);
+    }
+
+    public function test_manager_can_record_waste_log(): void
+    {
+        $this->actingAs($this->manager);
+        $material = Material::first();
+        $response = $this->postJson('/materials/waste', ['material_id' => $material->id, 'quantity' => 2, 'reason' => 'Rusak']);
+        $response->assertCreated();
+        $this->assertDatabaseHas('inventory_logs', ['material_id' => $material->id, 'type' => 'out']);
+    }
+
+    public function test_manager_can_transfer_stock_between_outlets(): void
+    {
+        $destination = Outlet::create(['name' => 'Destination Outlet']);
+        $material = Material::first();
+        $before = $material->stock;
+        $response = $this->actingAs($this->manager)->postJson('/materials/transfer', ['material_id' => $material->id, 'destination_outlet_id' => $destination->id, 'quantity' => 2, 'reason' => 'Restock']);
+        $response->assertCreated();
+        $this->assertDatabaseHas('inventory_logs', ['material_id' => $material->id, 'type' => 'out']);
+    }
+
+    public function test_product_cost_and_margin_report_are_available(): void
+    {
+        $product = $this->products[0];
+        $response = $this->actingAs($this->manager)->get('/reports/products/margins');
+        $response->assertOk()->assertSee($product->name)->assertSee('Margin');
+    }
+
+    public function test_profit_loss_report_is_available(): void
+    {
+        $response = $this->actingAs($this->manager)->get('/reports/profit-loss');
+        $response->assertOk()->assertSee('Laba Rugi')->assertSee('Penjualan');
+    }
+
+    public function test_analytics_report_and_profit_loss_export_are_available(): void
+    {
+        $this->actingAs($this->manager)->get('/reports/analytics')->assertOk()->assertSee('Produk Terlaris');
+        $this->actingAs($this->manager)->get('/reports/profit-loss/export')->assertOk()->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+    }
+
+    public function test_stock_alerts_are_available(): void
+    {
+        $this->actingAs($this->manager)->get('/reports/inventory-alerts')->assertOk()->assertSee('Stok Kritis')->assertSee('Kedaluwarsa');
+    }
+
+    public function test_business_analytics_full_report_is_available(): void
+    {
+        $this->actingAs($this->manager)->get('/reports/business-analytics')->assertOk()->assertSee('Penjualan per Jam')->assertSee('Perbandingan Outlet')->assertSee('Forecast');
     }
 
     // ========== UAT-011: Transaksi dengan diskon ==========

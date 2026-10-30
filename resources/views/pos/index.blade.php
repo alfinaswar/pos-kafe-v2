@@ -10,6 +10,7 @@
 @push('styles')
     <link rel="stylesheet" href="{{ asset('assets/plugins/sweetalert2/sweetalert2.min.css') }}">
     <style>
+        @media (max-width: 767.98px) { .product-card{min-height:110px}.cart-table{font-size:14px}.card-footer{position:sticky;bottom:0;z-index:10}.btn-lg{min-height:52px}.form-control{min-height:44px}.category-btn{min-height:42px} }
         .product-card {
             cursor: pointer;
             transition: transform 0.15s, box-shadow 0.15s;

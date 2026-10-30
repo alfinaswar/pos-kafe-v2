@@ -12,7 +12,7 @@ class CafeTable extends Model
 
     protected $table = 'cafe_tables';
 
-    protected $fillable = ['outlet_id', 'name', 'capacity', 'status'];
+    protected $fillable = ['outlet_id', 'name', 'capacity', 'status', 'occupancy_status'];
 
     protected static function booted(): void
     {

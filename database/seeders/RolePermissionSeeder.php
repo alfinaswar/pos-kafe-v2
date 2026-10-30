@@ -34,7 +34,9 @@ class RolePermissionSeeder extends Seeder
             // POS & Shift Management
             'pos-access', 'shift-manage', 'petty-cash',
             // Reports, Activity Log & Dashboard
-            'report-access', 'dashboard-access', 'activity-log-list'
+            'report-access', 'dashboard-access', 'activity-log-list',
+            'table-manage', 'kitchen-access', 'payment-settings', 'approval-manage',
+            'customer-manage'
         ];
 
         foreach ($permissions as $permission) {
@@ -59,7 +61,8 @@ class RolePermissionSeeder extends Seeder
             'product-list', 'product-create', 'product-edit', 'recipe-manage',
             'purchase-list', 'purchase-create', 'purchase-receive',
             'shift-manage',
-            'report-access', 'activity-log-list'
+            'report-access', 'activity-log-list',
+            'table-manage', 'kitchen-access', 'approval-manage', 'customer-manage'
         ]);
 
         // Cashier: POS Access, Shift open/close, Petty cash

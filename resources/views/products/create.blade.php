@@ -31,6 +31,15 @@
                     @endif
 
                     <div class="form-group">
+                        <div class="form-check"><input type="checkbox" name="is_bundle" value="1" class="form-check-input" id="is_bundle"><label class="form-check-label" for="is_bundle">Bundle menu</label></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Bundle Components</label>
+                        @foreach($products as $product)
+                            <div class="input-group mb-1"><div class="input-group-prepend"><div class="input-group-text"><input type="checkbox" name="bundle_items[{{ $product->id }}][selected]" value="1"></div></div><input class="form-control" value="{{ $product->name }}" readonly><input type="number" min="1" name="bundle_items[{{ $product->id }}][quantity]" class="form-control" value="1" style="max-width:100px"></div>
+                        @endforeach
+                    </div>
+                    <div class="form-group">
                         <label for="name">Menu Name <span class="text-danger">*</span></label>
                         <input type="text" name="name" class="form-control" id="name" value="{{ old('name') }}" placeholder="e.g. Es Kopi Susu Kaya Raya" required>
                     </div>

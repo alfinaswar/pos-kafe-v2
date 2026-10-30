@@ -9,6 +9,24 @@
 
 ## About Laravel
 
+## Demo Localhost
+
+Seed data demo:
+
+```bash
+php artisan migrate:fresh --seed --seeder=DemoDataSeeder
+```
+
+Demo accounts use password `password`:
+
+| Role | Email | Username |
+|------|-------|----------|
+| Owner | `owner@kayaraya.com` | `owner` |
+| Manager | `manager@kayaraya.com` | `manager` |
+| Cashier | `kasir@kayaraya.com` | `kasir` |
+
+Do not use demo credentials in production.
+
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
 
 - [Simple, fast routing engine](https://laravel.com/docs/routing).

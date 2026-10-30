@@ -43,6 +43,7 @@
                                 <button class="btn btn-success btn-sm" type="submit">Bayar Tunai</button>
                             </form>
                         @endif
+                        <a class="btn btn-secondary btn-sm mt-1" target="_blank" href="{{ route('table-orders.split-form', $order) }}">Split Bill</a>
                     </td>
                 </tr>
             @empty

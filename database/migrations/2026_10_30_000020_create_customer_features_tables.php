@@ -1,0 +1,4 @@
+<?php
+use Illuminate\Database\Migrations\Migration; use Illuminate\Database\Schema\Blueprint; use Illuminate\Support\Facades\Schema;
+return new class extends Migration { public function up(): void { Schema::create('vouchers',function(Blueprint $t){$t->id();$t->string('code')->unique();$t->decimal('discount_amount',12,2);$t->dateTime('expires_at')->nullable();$t->unsignedInteger('usage_limit')->nullable();$t->unsignedInteger('used_count')->default(0);$t->boolean('active')->default(true);$t->timestamps();}); Schema::create('customer_complaints',function(Blueprint $t){$t->id();$t->foreignId('customer_id')->constrained('customers')->cascadeOnDelete();$t->text('message');$t->enum('status',['open','resolved','closed'])->default('open');$t->text('response')->nullable();$t->timestamps();}); }
+public function down(): void {Schema::dropIfExists('customer_complaints');Schema::dropIfExists('vouchers');}};

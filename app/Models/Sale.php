@@ -12,11 +12,13 @@ class Sale extends Model
     protected $fillable = [
         'invoice_number',
         'user_id',
+        'customer_id',
         'shift_id',
         'total_price',
         'payment_amount',
         'change_amount',
         'payment_method'
+        ,'status'
     ];
 
     protected $casts = [
@@ -39,4 +41,6 @@ class Sale extends Model
     {
         return $this->hasMany(SaleItem::class);
     }
+
+    public function customer() { return $this->belongsTo(Customer::class); }
 }

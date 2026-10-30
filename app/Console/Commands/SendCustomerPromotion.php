@@ -1,0 +1,3 @@
+<?php
+namespace App\Console\Commands; use App\Mail\CustomerPromotionMail; use App\Models\Customer; use Illuminate\Console\Command; use Illuminate\Support\Facades\Mail;
+class SendCustomerPromotion extends Command {protected $signature='customers:promotion {subject} {message}';protected $description='Send email promotion to customers';public function handle():int{Customer::whereNotNull('email')->chunkById(100,function($customers){foreach($customers as $customer)Mail::to($customer->email)->queue(new CustomerPromotionMail($this->argument('subject'),$this->argument('message')));});return self::SUCCESS;}}

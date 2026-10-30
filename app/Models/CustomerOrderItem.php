@@ -22,4 +22,9 @@ class CustomerOrderItem extends Model
     {
         return $this->belongsTo(Product::class);
     }
+
+    public function modifiers()
+    {
+        return $this->hasMany(OrderItemModifier::class);
+    }
 }

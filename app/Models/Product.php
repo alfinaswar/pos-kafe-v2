@@ -14,11 +14,13 @@ class Product extends Model
         'category',
         'price',
         'image',
-        'detail'
+        'detail',
+        'is_bundle'
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
+        'is_bundle' => 'boolean',
     ];
 
     public function recipeItems()
@@ -30,4 +32,6 @@ class Product extends Model
     {
         return $this->hasMany(SaleItem::class);
     }
+
+    public function bundleItems() { return $this->hasMany(ProductBundleItem::class, 'bundle_product_id'); }
 }
