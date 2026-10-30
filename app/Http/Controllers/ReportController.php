@@ -26,7 +26,7 @@ class ReportController extends Controller
     public function sales(Request $request): View|JsonResponse
     {
         if ($request->ajax()) {
-            $sales = Sale::with(['user', 'shift.outlet'])->latest();
+            $sales = Sale::visibleToCurrentOutlet()->with(['user', 'shift.outlet'])->latest();
 
             if ($request->filled('start_date') && $request->filled('end_date')) {
                 $sales->whereBetween('created_at', [$request->start_date . ' 00:00:00', $request->end_date . ' 23:59:59']);
@@ -130,7 +130,7 @@ class ReportController extends Controller
 
     public function profitLoss(Request $request): View
     {
-        $sales = Sale::where('status', 'completed');
+        $sales = Sale::visibleToCurrentOutlet()->where('status', 'completed');
         if ($request->filled('start_date') && $request->filled('end_date')) $sales->whereBetween('created_at', [$request->start_date . ' 00:00:00', $request->end_date . ' 23:59:59']);
         $revenue = (clone $sales)->sum('total_price');
         $cogs = (clone $sales)->with('items.product.recipeItems.material')->get()->sum(fn ($sale) => $sale->items->sum(fn ($item) => $item->product->recipeItems->sum(fn ($recipe) => $recipe->quantity * (optional($recipe->material->batches()->latest()->first())->purchase_price ?? 0) * $item->quantity)));
@@ -147,7 +147,7 @@ class ReportController extends Controller
 
     public function exportProfitLoss(Request $request): StreamedResponse
     {
-        $sales = Sale::where('status', 'completed');
+        $sales = Sale::visibleToCurrentOutlet()->where('status', 'completed');
         if ($request->filled('start_date') && $request->filled('end_date')) $sales->whereBetween('created_at', [$request->start_date . ' 00:00:00', $request->end_date . ' 23:59:59']);
         $rows = $sales->get();
         return response()->streamDownload(function () use ($rows) { $handle = fopen('php://output', 'w'); fputcsv($handle, ['Invoice', 'Tanggal', 'Penjualan', 'Metode']); foreach ($rows as $sale) fputcsv($handle, [$sale->invoice_number, $sale->created_at->format('Y-m-d H:i'), $sale->total_price, $sale->payment_method]); fclose($handle); }, 'laporan-laba-rugi.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
@@ -162,15 +162,15 @@ class ReportController extends Controller
 
     public function businessAnalytics(): View
     {
-        $hourlySales = Sale::where('status', 'completed')->selectRaw('HOUR(created_at) hour, SUM(total_price) total')->groupBy('hour')->orderBy('hour')->get();
-        $outletComparison = Sale::where('status', 'completed')->with('shift.outlet')->get()->groupBy(fn ($sale) => $sale->shift->outlet->name ?? 'Pusat')->map(fn ($sales) => $sales->sum('total_price'));
+        $hourlySales = Sale::visibleToCurrentOutlet()->where('status', 'completed')->selectRaw('HOUR(created_at) hour, SUM(total_price) total')->groupBy('hour')->orderBy('hour')->get();
+        $outletComparison = Sale::visibleToCurrentOutlet()->where('status', 'completed')->with('shift.outlet')->get()->groupBy(fn ($sale) => $sale->shift->outlet->name ?? 'Pusat')->map(fn ($sales) => $sales->sum('total_price'));
         $forecast = Material::select('name', 'stock', 'reorder_point')->whereColumn('stock', '<=', 'reorder_point')->get();
         return view('reports.business-analytics', compact('hourlySales', 'outletComparison', 'forecast'));
     }
 
     public function exportSalesCsv(Request $request): StreamedResponse
     {
-        $sales = Sale::with(['user', 'shift.outlet', 'items.product'])->latest();
+        $sales = Sale::visibleToCurrentOutlet()->with(['user', 'shift.outlet', 'items.product'])->latest();
         if ($request->filled('start_date') && $request->filled('end_date')) {
             $sales->whereBetween('created_at', [$request->start_date . ' 00:00:00', $request->end_date . ' 23:59:59']);
         }

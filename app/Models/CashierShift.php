@@ -63,4 +63,12 @@ class CashierShift extends Model
         $pettyOut = (float) $this->pettyCashes()->where('type', 'out')->sum('amount');
         return (float) $this->start_cash + (float) $this->total_sales_cash + $pettyIn - $pettyOut;
     }
+
+    /**
+     * Scope: batasi shift sesuai outlet user aktif (Owner/Admin melihat semua).
+     */
+    public function scopeVisibleToCurrentOutlet($query)
+    {
+        return \App\Support\OutletScope::apply($query);
+    }
 }

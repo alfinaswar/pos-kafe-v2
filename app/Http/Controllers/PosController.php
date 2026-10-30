@@ -66,11 +66,22 @@ class PosController extends Controller
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.price' => 'required|numeric|min:0',
             'payment_amount' => 'required|numeric|min:0',
-            'payment_method' => 'nullable|string'
+            'payment_method' => 'nullable|string',
+            'idempotency_key' => 'nullable|string|max:64',
         ]);
 
         try {
             $sale = DB::transaction(function () use ($request) {
+                // 0. Cegah transaksi ganda (double-submit): key sudah pernah dipakai?
+                $idempotencyKey = $request->input('idempotency_key');
+                if ($idempotencyKey) {
+                    $existing = Sale::where('idempotency_key', $idempotencyKey)->first();
+                    if ($existing) {
+                        // Kembalikan transaksi yang sudah tersimpan, jangan buat baru.
+                        return $existing;
+                    }
+                }
+
                 // 1. Validasi Shift Kasir Aktif dengan Row Locking
                 $shift = CashierShift::where('user_id', auth()->id())
                     ->where('status', 'open')
@@ -81,9 +92,25 @@ class PosController extends Controller
                     throw new \Exception('Tidak ada shift kasir yang aktif! Harap buka shift terlebih dahulu.');
                 }
 
+                // Muat produk dari database — harga divalidasi di server,
+                // tidak mempercayai harga yang dikirim browser.
+                $products = Product::whereIn('id', collect($request->items)->pluck('product_id'))
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('id');
+
                 $totalPrice = 0;
                 foreach ($request->items as $item) {
-                    $totalPrice += ($item['quantity'] * $item['price']);
+                    $product = $products->get($item['product_id']);
+                    if (!$product) {
+                        throw new \Exception('Produk tidak ditemukan: #' . $item['product_id']);
+                    }
+                    // Harga server yang menjadi acuan total.
+                    $serverPrice = (float) $product->price;
+                    if (abs((float) $item['price'] - $serverPrice) > 0.001) {
+                        throw new \Exception("Harga tidak sesuai untuk [{$product->name}]. Silakan refresh menu.");
+                    }
+                    $totalPrice += ($item['quantity'] * $serverPrice);
                 }
 
                 if ($request->payment_amount < $totalPrice) {
@@ -94,15 +121,17 @@ class PosController extends Controller
                 $invoiceNumber = 'INV-' . date('YmdHis') . '-' . rand(100, 999);
                 $paymentMethod = $request->input('payment_method', 'cash');
 
-                // 2. Catat Transaksi Penjualan Terhubung ke Shift
+                // 2. Catat Transaksi Penjualan Terhubung ke Shift + Outlet
                 $sale = Sale::create([
                     'invoice_number' => $invoiceNumber,
                     'user_id' => auth()->id(),
+                    'outlet_id' => $shift->outlet_id ?? auth()->user()->outlet_id,
                     'shift_id' => $shift->id,
                     'total_price' => $totalPrice,
                     'payment_amount' => $request->payment_amount,
                     'change_amount' => $changeAmount,
                     'payment_method' => $paymentMethod,
+                    'idempotency_key' => $idempotencyKey,
                 ]);
 
                 // 3. Loop Menu Items & Pengurangan Stok Bahan Baku FIFO dengan LockForUpdate

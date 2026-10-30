@@ -12,6 +12,7 @@ class Purchase extends Model
     protected $fillable = [
         'supplier_id',
         'user_id',
+        'outlet_id',
         'invoice_number',
         'total_cost',
         'status',
@@ -40,5 +41,18 @@ class Purchase extends Model
     public function batches()
     {
         return $this->hasMany(MaterialBatch::class);
+    }
+
+    public function outlet()
+    {
+        return $this->belongsTo(Outlet::class);
+    }
+
+    /**
+     * Scope: batasi pembelian sesuai outlet user yang login.
+     */
+    public function scopeVisibleToCurrentOutlet($query)
+    {
+        return \App\Support\OutletScope::apply($query);
     }
 }

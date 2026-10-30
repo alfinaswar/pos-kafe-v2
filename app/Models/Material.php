@@ -56,4 +56,19 @@ class Material extends Model
     {
         return $this->hasMany(MaterialBatch::class)->where('remaining_qty', '>', 0)->orderBy('created_at', 'asc');
     }
+
+    public function outletStocks()
+    {
+        return $this->hasMany(MaterialOutletStock::class);
+    }
+
+    /**
+     * Scope: batasi bahan yang relevan dengan outlet user (via material_outlet_stocks).
+     */
+    public function scopeVisibleToCurrentOutlet($query)
+    {
+        $outletId = \App\Support\OutletScope::current();
+
+        return $outletId ? $query->whereHas('outletStocks', fn ($s) => $s->where('outlet_id', $outletId)) : $query;
+    }
 }

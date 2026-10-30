@@ -289,6 +289,7 @@
     function clearCart() {
         cart = [];
         $('#payment-input').val('');
+        currentIdempotencyKey = null; // transaksi baru = kunci idempotency baru
         renderCart();
     }
 
@@ -348,6 +349,12 @@
         }
     }
 
+    // Kunci unik per transaksi untuk mencegah dobel-klik menyimpan transaksi ganda.
+    let currentIdempotencyKey = null;
+    function newIdempotencyKey() {
+        return 'pos-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    }
+
     function processCheckout() {
         let total = cart.reduce((acc, i) => acc + (i.quantity * i.price), 0);
         let payment = parseFloat($('#payment-input').val()) || 0;
@@ -370,6 +377,7 @@
             confirmButtonText: 'Proses Transaksi'
         }).then(res => {
             if (res.isConfirmed) {
+                if (!currentIdempotencyKey) currentIdempotencyKey = newIdempotencyKey();
                 $.ajax({
                     url: "{{ route('pos.store') }}",
                     type: "POST",
@@ -377,7 +385,8 @@
                         _token: $('meta[name="csrf-token"]').attr('content'),
                         items: cart,
                         payment_amount: payment,
-                        payment_method: method
+                        payment_method: method,
+                        idempotency_key: currentIdempotencyKey
                     },
                     success: function(response) {
                         Swal.fire({

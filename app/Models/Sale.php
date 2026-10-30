@@ -12,6 +12,8 @@ class Sale extends Model
     protected $fillable = [
         'invoice_number',
         'user_id',
+        'outlet_id',
+        'idempotency_key',
         'customer_id',
         'shift_id',
         'total_price',
@@ -43,4 +45,18 @@ class Sale extends Model
     }
 
     public function customer() { return $this->belongsTo(Customer::class); }
+
+    public function outlet()
+    {
+        return $this->belongsTo(Outlet::class);
+    }
+
+    /**
+     * Scope: batasi transaksi sesuai outlet user yang login.
+     * Owner/Admin (atau tanpa outlet_id) melihat semua outlet.
+     */
+    public function scopeVisibleToCurrentOutlet($query)
+    {
+        return \App\Support\OutletScope::apply($query);
+    }
 }

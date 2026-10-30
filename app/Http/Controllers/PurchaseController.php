@@ -29,7 +29,7 @@ class PurchaseController extends Controller
     public function index(Request $request): View|JsonResponse
     {
         if ($request->ajax()) {
-            $purchases = Purchase::with(['supplier', 'user'])->latest();
+            $purchases = Purchase::visibleToCurrentOutlet()->with(['supplier', 'user'])->latest();
             return DataTables::of($purchases)
                 ->addIndexColumn()
                 ->addColumn('total_cost_formatted', function ($row) {
@@ -86,6 +86,7 @@ class PurchaseController extends Controller
                 $purchase = Purchase::create([
                     'supplier_id' => $request->supplier_id,
                     'user_id' => auth()->id(),
+                    'outlet_id' => auth()->user()->outlet_id,
                     'invoice_number' => $invoiceNumber,
                     'total_cost' => $totalCost,
                     'status' => 'pending',
@@ -119,6 +120,9 @@ class PurchaseController extends Controller
 
     public function show(Purchase $purchase): View
     {
+        // Pembatasan outlet: kasir/manager hanya boleh membuka PO outlet-nya.
+        abort_unless(\App\Support\OutletScope::apply(Purchase::whereKey($purchase->id))->exists(), 403, 'PO bukan milik outlet Anda.');
+
         $purchase->load(['supplier', 'user', 'details.material']);
         return view('purchases.show', compact('purchase'));
     }
