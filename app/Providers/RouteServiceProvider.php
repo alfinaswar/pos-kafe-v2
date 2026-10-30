@@ -7,6 +7,7 @@ use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvi
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Validation\ValidationException;
 
 class RouteServiceProvider extends ServiceProvider
 {
@@ -45,8 +46,16 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
+        // Rate limit login: 5 percobaan per menit per IP+username,
+        // dengan lockout tambahan berdasarkan username agar brute-force
+        // dari banyak IP ke satu akun juga tertahan.
         RateLimiter::for('login', function (Request $request) {
-            return Limit::perMinutes(15, 10)->by(strtolower((string) $request->input('email')) . '|' . $request->ip());
+            $username = strtolower((string) $request->input('username'));
+
+            return [
+                Limit::perMinute(5)->by('login:' . $username . '|' . $request->ip()),
+                Limit::perMinutes(10, 15)->by('login-user:' . $username),
+            ];
         });
     }
 }
