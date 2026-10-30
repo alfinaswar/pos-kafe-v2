@@ -87,50 +87,8 @@
             <!-- Sidebar Menu -->
             <nav class="mt-2">
                 <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
-                    <li class="nav-item">
-                        @can('approval-manage')
-                        <a href="{{ route('approvals.index') }}" class="nav-link">
-                            <i class="nav-icon fas fa-user-check"></i>
-                            <p>Approval</p>
-                        </a>
-                        @endcan
-                    </li>
-                    <li class="nav-item">
-                        @can('pos-access')
-                        <a href="{{ route('table-requests.index') }}" class="nav-link">
-                            <i class="nav-icon fas fa-bell"></i>
-                            <p>Permintaan Meja</p>
-                        </a>
-                        @endcan
-                    </li>
-                    <li class="nav-item">
-                        @can('kitchen-access')
-                        <a href="{{ route('kitchen.index') }}" class="nav-link">
-                            <i class="nav-icon fas fa-utensils"></i>
-                            <p>Kitchen Display</p>
-                        </a>
-                        @endcan
-                    </li>
-                    <li class="nav-item">
-                        @can('payment-settings')
-                        <a href="{{ route('settings.payment') }}" class="nav-link">
-                            <i class="nav-icon fas fa-credit-card"></i>
-                            <p>Pengaturan Pembayaran</p>
-                        </a>
-                        @endcan
-                    </li>
-                    <li class="nav-item">
-                        <a href="{{ route('tables.index') }}" class="nav-link">
-                            <i class="nav-icon fas fa-chair"></i>
-                            <p>Meja Kafe</p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="{{ route('table-orders.index') }}" class="nav-link">
-                            <i class="nav-icon fas fa-concierge-bell"></i>
-                            <p>Order Meja</p>
-                        </a>
-                    </li>
+                    <!-- Utama -->
+                    <li class="nav-header">UTAMA</li>
                     <li class="nav-item">
                         <a href="{{ route('home') }}" class="nav-link {{ request()->routeIs('home') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-tachometer-alt"></i>
@@ -155,6 +113,45 @@
                         </a>
                     </li>
                     @endcan
+
+                    <!-- Operasional -->
+                    <li class="nav-header">OPERASIONAL</li>
+                    <li class="nav-item">
+                        <a href="{{ route('tables.index') }}" class="nav-link {{ request()->routeIs('tables.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-chair"></i>
+                            <p>Meja Kafe</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ route('table-orders.index') }}" class="nav-link {{ request()->routeIs('table-orders.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-concierge-bell"></i>
+                            <p>Order Meja</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        @can('pos-access')
+                        <a href="{{ route('table-requests.index') }}" class="nav-link {{ request()->routeIs('table-requests.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-bell"></i>
+                            <p>Permintaan Meja</p>
+                        </a>
+                        @endcan
+                    </li>
+                    <li class="nav-item">
+                        @can('kitchen-access')
+                        <a href="{{ route('kitchen.index') }}" class="nav-link {{ request()->routeIs('kitchen.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-utensils"></i>
+                            <p>Kitchen Display</p>
+                        </a>
+                        @endcan
+                    </li>
+                    <li class="nav-item">
+                        @can('approval-manage')
+                        <a href="{{ route('approvals.index') }}" class="nav-link {{ request()->routeIs('approvals.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-user-check"></i>
+                            <p>Approval</p>
+                        </a>
+                        @endcan
+                    </li>
 
                     <!-- Master Data -->
                     @if(auth()->user()->can('material-list') || auth()->user()->can('product-list') || auth()->user()->can('supplier-list') || auth()->user()->can('outlet-list'))
@@ -253,7 +250,7 @@
                     @endcan
 
                     <!-- System Users -->
-                    @if(auth()->user()->can('user-list') || auth()->user()->can('role-list') || auth()->user()->can('activity-log-list'))
+                    @if(auth()->user()->can('user-list') || auth()->user()->can('role-list') || auth()->user()->can('activity-log-list') || auth()->user()->can('payment-settings'))
                     <li class="nav-header">PENGATURAN SISTEM</li>
                     @can('user-list')
                     <li class="nav-item">
@@ -278,6 +275,15 @@
                         <a href="{{ route('activity-logs.index') }}" class="nav-link {{ request()->routeIs('activity-logs.*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-shield-alt"></i>
                             <p>Audit Trail (Logs)</p>
+                        </a>
+                    </li>
+                    @endcan
+
+                    @can('payment-settings')
+                    <li class="nav-item">
+                        <a href="{{ route('settings.payment') }}" class="nav-link {{ request()->routeIs('settings.payment') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-credit-card"></i>
+                            <p>Pengaturan Pembayaran</p>
                         </a>
                     </li>
                     @endcan
